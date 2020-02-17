@@ -357,8 +357,18 @@ class default_payment_next_month;
 var phat;
 run;
 
+data AllPreds;
+retain Selected P_1 P_0;
+set 
+testpred
+valpred;
+
+rename Selected=Training;
 
 
+run;
+
+proc sort data=allpreds; by descending P_1 ; run;
 
 
 
