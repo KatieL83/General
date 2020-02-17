@@ -1,0 +1,380 @@
+/**K.Lashko*/
+/*Credit Card Default Rates;*/
+
+*import raw file;
+proc import datafile="C:\Users\katru\Documents\Optimization\default of credit card clients.xls" 
+dbms=xls
+out=cc
+REPLACE;
+run;
+
+data cc; set cc; run;
+
+*look at contents of raw file;
+proc contents data=cc out=cc_cont (keep=name label varnum type);
+run;
+
+/*Observations          30000*/
+/*Variables             25   */
+*Section 1- explore data;
+
+*Look at frequency distributions-- descriptive variables;
+proc freq data=cc;
+tables
+default_payment_next_month
+limit_bal
+EDUCATION
+MARRIAGE
+SEX
+AGE
+
+/list missing;
+run;
+*marriage and education have out of bound values;
+
+
+
+proc freq data=cc;
+tables
+limit_bal*bill_amt1/list missing;
+run;
+
+/*                  default_payment_next_month*/
+/* */
+/* default_payment_                       Cumulative  Cumulative*/
+/*       next_month  Frequency   Percent   Frequency    Percent*/
+/* -------------------------------------------------------------*/
+/*                0     23364     77.88       23364      77.88  */
+/*                1      6636     22.12       30000     100.00  */
+
+
+*Look at frequency distributions-- Pay Status Variables;
+proc freq data=cc;
+tables 
+PAY_0
+PAY_2
+PAY_3
+PAY_4
+PAY_5
+PAY_6
+/list missing;
+
+
+run;
+*pay duly for 2 months, 0 payment delays, and payment delay 1-8 months;
+
+proc corr data=cc;
+var 
+PAY_0
+PAY_2
+PAY_3
+PAY_4
+PAY_5
+PAY_6;
+run;
+
+
+*Descriptive Stats of Bill amount variables;
+proc means data=cc n nmiss std mean median mode  min max;
+var 
+
+BILL_AMT1
+BILL_AMT2
+BILL_AMT3
+BILL_AMT4
+BILL_AMT5
+BILL_AMT6; 
+run;
+
+ods graphics on;
+proc univariate data=cc noprint;
+histogram
+BILL_AMT1
+BILL_AMT2
+BILL_AMT3
+BILL_AMT4
+BILL_AMT5
+BILL_AMT6/kernel(color=red) normal (color=blue)
+;
+run;
+
+
+data cc1;
+set cc (rename=(MARRIAGE=m1 education=edu));
+
+*re-code negative values to 0 for pay status;
+array pays pay_0--pay_6;
+
+do i=1 to dim(pays);
+if pays{i} le 0 then pays{i}=0;
+else pays{i} =Pays{i};
+end;
+drop i ;
+
+
+Pay= sum(of 
+PAY_0,
+PAY_2,
+PAY_3,
+PAY_4,
+PAY_5,
+PAY_6);
+
+*create a categorical variable for payment status;
+length paycat $45;
+if pay le 0 then paycat="positive payment history";
+else if pay =1 then paycat="at least one missed payment";
+else if pay gt 1 and pay le 3 then paycat="1 to 3 missed";
+else if pay gt 3 and pay le 6 then paycat="3 to 6 missed";
+else if pay gt 6 and pay le 9 then paycat="6 to 9 missed";
+else if pay gt 9 and pay le 12 then paycat="9 to 12 missed";
+else paycat="more than 12 missed";
+
+*sum payments into one lump payment;
+Pay_Amt=sum (of
+PAY_AMT1,
+PAY_AMT2,
+PAY_AMT3,
+PAY_AMT4,
+PAY_AMT5,
+PAY_AMT6)
+;
+
+*re-code marriage and education variables;
+
+if Edu in (0,5,6) then do Education =4; end;
+else do education=edu;
+end;
+
+if m1 =0 then do Marriage=3; end;
+else do Marriage=m1; end;
+
+length agec $50;
+if age ge 21 and age le 25 then agec="le 25";
+else if age gt 25 and age le 30 then agec="26 to 30";
+else if age gt 30 and age le 35 then agec="30 to 35";
+else if age gt 35 and age le 40 then agec="35 to 40";
+else if age gt 40 and age le 50 then agec="40 to 50";
+else if age gt 50 and age le 60 then agec="50 to 60";
+else agec="greater than 60";
+
+length Limit $35;
+If Limit_Bal ge  10000 and Limit_Bal le 50000 then Limit = "10 to 50 K";
+else if Limit_Bal gt 50000 and Limit_Bal le 100000 then Limit = "50 to 100K";
+else if Limit_Bal gt 100000 and Limit_Bal le 200000 then Limit = "100 to 200K";
+else if Limit_Bal gt 200000 and Limit_Bal le 300000 then Limit = "200 to 300K";
+else if Limit_Bal gt 300000 and Limit_Bal le 400000 then Limit = "300 to 400K";
+else if Limit_Bal gt 400000 and Limit_Bal le 500000 then Limit = "400 to 500K";
+else if Limit_Bal gt 500000 and Limit_Bal le 600000 then Limit = "500 to 600K";
+else if Limit_Bal gt 600000 and Limit_Bal le 700000 then Limit = "600 to 700K";
+else if Limit_Bal gt 700000 and Limit_Bal le 800000 then Limit = "700 to 800K";
+else if Limit_Bal gt 800000 and Limit_Bal le 900000 then Limit = "800 to 900K";
+else if Limit_Bal gt 900000 and Limit_Bal le 1000000 then Limit = "900K to 1 MIL";
+
+
+run;
+
+*check that categorical variable was created properly;
+proc freq data=cc1;
+tables pay/list missing;
+tables pay*paycat/list missing;
+tables edu*education/list missing;
+tables m1*marriage/list missing;
+tables agec*age/list missing;
+tables limit*limit_bal/list missing;
+run;
+
+proc freq data=cc1;
+tables limit/list missing;
+tables agec/list missing;
+tables paycat/list missing;
+run;
+
+*explore descriptive vars by default status after re-coding;
+proc sort data=cc1; by default_payment_next_month limit;run;
+proc freq data=cc1;
+tables
+default_payment_next_month*limit
+default_payment_next_month*EDUCATION
+default_payment_next_month*MARRIAGE
+default_payment_next_month*SEX
+default_payment_next_month*AGEc
+default_payment_next_month*paycat
+
+/list missing;
+run;
+
+proc freq data=cc1;
+tables sex/list missing;
+run;
+
+
+
+proc freq data=cc1;
+by default_payment_next_month;
+tables
+Education Limit Marriage sex agec/list missing;
+run;
+
+proc sort data=cc1; by Marriage; run;
+proc freq data=cc1;
+by marriage;
+tables
+default_payment_next_month/list missing;
+run;
+
+
+*Descriptive Stats of Pay amount variables;
+proc means data=cc1 n nmiss std mean median mode  min max;
+var 
+PAY_AMT1
+PAY_AMT2
+PAY_AMT3
+PAY_AMT4
+PAY_AMT5
+PAY_AMT6; 
+run;
+
+ods graphics on;
+proc univariate data=cc1 noprint ;
+histogram
+PAY_AMT1
+PAY_AMT2
+PAY_AMT3
+PAY_AMT4
+PAY_AMT5
+PAY_AMT6/kernel(color=red) normal (color=blue)
+;
+run;
+
+proc print data=cc1;
+where limit_bal > Pay_amt;
+run;
+
+
+** Correlations;
+
+proc corr data=cc1;
+var 
+
+BILL_AMT1
+BILL_AMT2
+BILL_AMT3
+BILL_AMT4
+BILL_AMT5
+BILL_AMT6;
+run;
+*high correlation btw bill_amount vars. Can consider keeping just one of these variables;
+
+proc corr data=cc1;
+var 
+pay_amt
+PAY_AMT1
+PAY_AMT2
+PAY_AMT3
+PAY_AMT4
+PAY_AMT5
+PAY_AMT6;
+run;
+
+proc corr data=cc1;
+var 
+limit_bal
+EDUCATION
+MARRIAGE
+SEX
+AGE;
+run;
+*relatively weak overall correlations between this set of input variables;
+
+data clean;
+set cc1;
+drop m1 edu;
+run;
+*****;
+
+proc surveyselect data=clean out=trainset method=srs outall samprate=70  seed=8383;
+samplingunit id;
+run;
+
+proc freq data=trainset;
+tables Selected/list missing;
+run;
+
+data train test;
+set trainset;
+
+if selected=1 then  output train;
+else output test;
+
+run;
+
+proc freq data=train;
+tables default_payment_next_month/list missing;
+run; 
+
+%let log2= 
+agec
+BILL_AMT4
+BILL_AMT6
+EDUCATION
+LIMIT
+MARRIAGE
+PAY_AMT
+paycat
+SEX;
+
+
+
+ods graphics on;
+proc logistic data=train plots(only)=(oddsratio) plots(only)=ROC outmodel=logisticModel;
+class education(ref='1') MARRIAGE(ref='3') limit (ref="10 to 50 K") paycat (ref="positive payment history")
+PAYcat (ref='positive payment history')
+sex (ref='1') agec (ref='50 to 60')
+
+/ param=ref;
+model default_payment_next_month(event='1') = &log2. /
+selection=stepwise slstay=0.03
+clodds=pl clparm=pl ctable pprob = 0 to 0.98 by 0.02;
+ods output classification=classtable;
+
+;
+title 'Modeling Loan Default2';
+output out=predprobs p=phat;
+score data=train fitstat 
+out=testpred outroc=testroc;
+
+score data=test fitstat 
+out=valpred outroc=vroc;
+
+
+run;
+quit;
+
+*get optimal cut-off: KS Statistic;
+proc npar1way data=predprobs d plot=edfplot;
+class default_payment_next_month;
+var phat;
+run;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
